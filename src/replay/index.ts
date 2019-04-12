@@ -20,13 +20,11 @@ import {
   ReplayerEvents,
 } from '../types';
 import { mirror } from '../utils';
-import injectStyleRules from './styles/inject-style';
+import getInjectStyleRules from './styles/inject-style';
 import './styles/style.css';
 
 const SKIP_TIME_THRESHOLD = 10 * 1000;
 const SKIP_TIME_INTERVAL = 5 * 1000;
-
-smoothscroll.polyfill();
 
 // https://github.com/rollup/rollup/issues/1267#issuecomment-296395734
 // tslint:disable-next-line
@@ -70,10 +68,12 @@ export class Replayer {
       skipInactive: false,
       showWarning: true,
       showDebug: false,
+      blockClass: 'rr-block',
     };
     this.config = Object.assign({}, defaultConfig, config);
 
     this.timer = new Timer(this.config);
+    smoothscroll.polyfill();
     this.setupDom();
     this.emitter.on('resize', this.handleResize as mitt.Handler);
   }
@@ -278,6 +278,7 @@ export class Replayer {
     const styleEl = document.createElement('style');
     const { documentElement, head } = this.iframe.contentDocument!;
     documentElement!.insertBefore(styleEl, head);
+    const injectStyleRules = getInjectStyleRules(this.config.blockClass);
     for (let idx = 0; idx < injectStyleRules.length; idx++) {
       (styleEl.sheet! as CSSStyleSheet).insertRule(injectStyleRules[idx], idx);
     }
@@ -301,7 +302,7 @@ export class Replayer {
               this.pause();
               this.emitter.emit(ReplayerEvents.LoadStylesheetStart);
               timer = window.setTimeout(() => {
-                this.resume();
+                this.resume(this.timer.timeOffset);
                 // mark timer was called
                 timer = -1;
               }, this.config.loadTimeout);
@@ -310,7 +311,7 @@ export class Replayer {
             css.addEventListener('load', () => {
               unloadSheets.delete(css);
               if (unloadSheets.size === 0 && timer !== -1) {
-                this.resume();
+                this.resume(this.timer.timeOffset);
                 this.emitter.emit(ReplayerEvents.LoadStylesheetEnd);
                 if (timer) {
                   window.clearTimeout(timer);
